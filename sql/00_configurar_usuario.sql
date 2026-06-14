@@ -1,0 +1,12 @@
+-- Crear usuario del proyecto
+CREATE USER biblioteca_user IDENTIFIED BY biblioteca123
+  DEFAULT TABLESPACE USERS
+  TEMPORARY TABLESPACE TEMP
+  QUOTA UNLIMITED ON USERS;
+
+GRANT CONNECT, RESOURCE TO biblioteca_user;
+GRANT CREATE SESSION TO biblioteca_user;
+GRANT CREATE TABLE TO biblioteca_user;
+GRANT CREATE SEQUENCE TO biblioteca_user;
+GRANT CREATE PROCEDURE TO biblioteca_user;
+GRANT CREATE VIEW TO biblioteca_user;

@@ -1,0 +1,54 @@
+Project biblioteca_oracle_python {
+  database_type: "Oracle"
+}
+
+Table TIPOS_MATERIAL {
+  ID_TIPO_MATERIAL number [pk]
+  NOMBRE varchar2(50) [not null]
+  DESCRIPCION varchar2(200)
+  ESTADO char(1) [not null, default: 'A', note: "Valores: A, I"]
+}
+
+Table CATEGORIAS {
+  ID_CATEGORIA number [pk]
+  NOMBRE varchar2(80) [not null]
+  DESCRIPCION varchar2(200)
+  ESTADO char(1) [not null, default: 'A', note: "Valores: A, I"]
+}
+
+Table USUARIOS {
+  CEDULA varchar2(20) [pk]
+  NOMBRE varchar2(80) [not null]
+  APELLIDOS varchar2(120) [not null]
+  CORREO varchar2(120)
+  TELEFONO varchar2(20)
+  FECHA_REGISTRO date [not null, default: `SYSDATE`]
+  ESTADO char(1) [not null, default: 'A', note: "Valores: A, I"]
+}
+
+Table MATERIALES {
+  ID_MATERIAL number [pk]
+  TITULO varchar2(200) [not null]
+  AUTOR varchar2(150)
+  EDITORIAL varchar2(120)
+  ANIO_PUBLICACION number(4)
+  CODIGO_ISBN varchar2(30) [unique]
+  ID_TIPO_MATERIAL number [not null]
+  ID_CATEGORIA number [not null]
+  ESTADO varchar2(20) [not null, default: 'DISPONIBLE', note: "Valores: DISPONIBLE, PRESTADO, INACTIVO"]
+}
+
+Table PRESTAMOS {
+  ID_PRESTAMO number [pk]
+  CEDULA varchar2(20) [not null]
+  ID_MATERIAL number [not null]
+  FECHA_PRESTAMO date [not null, default: `SYSDATE`]
+  FECHA_DEVOLUCION_ESPERADA date [not null]
+  FECHA_DEVOLUCION_REAL date
+  ESTADO varchar2(20) [not null, default: 'ACTIVO', note: "Valores: ACTIVO, DEVUELTO, ANULADO"]
+}
+
+Ref: MATERIALES.ID_TIPO_MATERIAL > TIPOS_MATERIAL.ID_TIPO_MATERIAL
+Ref: MATERIALES.ID_CATEGORIA > CATEGORIAS.ID_CATEGORIA
+Ref: PRESTAMOS.CEDULA > USUARIOS.CEDULA
+Ref: PRESTAMOS.ID_MATERIAL > MATERIALES.ID_MATERIAL
