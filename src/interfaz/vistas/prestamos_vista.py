@@ -2,7 +2,10 @@ import customtkinter as ctk
 from tkinter import messagebox
 from interfaz.tema import COLORES, FUENTES
 from interfaz.componentes import TablaEstilizada, DialogoFormulario
-from servicios import prestamos_servicio, usuarios_servicio, materiales_servicio
+from servicios import (
+    prestamos_servicio, usuarios_servicio, materiales_servicio,
+    validaciones_servicio, reportes_servicio,
+)
 
 COLUMNAS = [
     ("id", "ID", 50),
@@ -13,6 +16,12 @@ COLUMNAS = [
     ("f_dev_real", "Dev. Real", 110),
     ("estado", "Estado", 90),
 ]
+
+_MSG_VALIDACION = {
+    "USUARIO_INACTIVO_O_NO_EXISTE": "El usuario no existe o esta inactivo.",
+    "USUARIO_CON_MULTAS_PENDIENTES": "El usuario tiene multas pendientes.",
+    "LIMITE_DE_PRESTAMOS_ALCANZADO": "El usuario ya tiene 3 prestamos activos.",
+}
 
 
 class PrestamosVista(ctk.CTkFrame):
@@ -44,7 +53,7 @@ class PrestamosVista(ctk.CTkFrame):
         filtro_marco.pack(fill="x", padx=30, pady=(0, 5))
 
         self.filtro = ctk.CTkSegmentedButton(
-            filtro_marco, values=["Todos", "Activos", "Historial"],
+            filtro_marco, values=["Todos", "Activos", "Vencidos", "Historial"],
             command=self._cambiar_filtro)
         self.filtro.set("Todos")
         self.filtro.pack(side="left")
@@ -76,6 +85,9 @@ class PrestamosVista(ctk.CTkFrame):
             if modo == "Activos":
                 _, filas = prestamos_servicio.listar_prestamos_activos()
                 mapeadas = [self._mapear(f) for f in filas]
+            elif modo == "Vencidos":
+                _, filas = reportes_servicio.listar_prestamos_vencidos()
+                mapeadas = [self._mapear_vencido(f) for f in filas]
             elif modo == "Historial":
                 self._buscar_historial()
                 return
@@ -88,6 +100,10 @@ class PrestamosVista(ctk.CTkFrame):
 
     def _mapear(self, fila):
         return (fila[0], fila[7], fila[8], fila[3], fila[4], fila[5], fila[6])
+
+    def _mapear_vencido(self, fila):
+        # VW: id, cedula, id_mat, f_prest, f_esp, usuario, material
+        return (fila[0], fila[5], fila[6], fila[3], fila[4], "", "VENCIDO")
 
     def _mapear_historial(self, fila):
         return (fila[0], "-", fila[6], fila[2], fila[3], fila[4], fila[5])
@@ -144,6 +160,14 @@ class PrestamosVista(ctk.CTkFrame):
         if dlg.resultado:
             try:
                 r = dlg.resultado
+                # valida antes de registrar
+                resultado = validaciones_servicio.validar_prestamo(r["cedula"])
+                if resultado != "OK":
+                    msg = _MSG_VALIDACION.get(
+                        resultado, f"No se puede prestar: {resultado}")
+                    messagebox.showwarning("Validacion", msg, parent=self)
+                    return
+
                 prestamos_servicio.registrar_prestamo(
                     r["cedula"], r["id_material"], r["fecha_dev"])
                 messagebox.showinfo("Exito", "Prestamo registrado.",
@@ -158,16 +182,27 @@ class PrestamosVista(ctk.CTkFrame):
             messagebox.showwarning("Aviso", "Seleccione un prestamo.",
                                    parent=self)
             return
-        if sel[6] != "ACTIVO":
+        if sel[6] not in ("ACTIVO", "VENCIDO"):
             messagebox.showwarning("Aviso",
                                    "Solo se pueden devolver prestamos activos.",
                                    parent=self)
             return
-        if messagebox.askyesno("Confirmar",
-                               f"Registrar devolucion del prestamo {sel[0]}?",
-                               parent=self):
+
+        id_prestamo = int(sel[0])
+        mensaje = f"Registrar devolucion del prestamo {id_prestamo}?"
+        try:
+            dias = reportes_servicio.dias_retraso(id_prestamo)
+            if dias > 0:
+                mensaje = (
+                    f"El prestamo {id_prestamo} tiene {dias} dia(s) de atraso.\n"
+                    "Se generara una multa al devolver.\n\nContinuar?"
+                )
+        except Exception:
+            pass
+
+        if messagebox.askyesno("Confirmar", mensaje, parent=self):
             try:
-                prestamos_servicio.registrar_devolucion(int(sel[0]))
+                prestamos_servicio.registrar_devolucion(id_prestamo)
                 messagebox.showinfo("Exito", "Devolucion registrada.",
                                     parent=self)
                 self.refrescar()
@@ -180,7 +215,7 @@ class PrestamosVista(ctk.CTkFrame):
             messagebox.showwarning("Aviso", "Seleccione un prestamo.",
                                    parent=self)
             return
-        if sel[6] != "ACTIVO":
+        if sel[6] not in ("ACTIVO", "VENCIDO"):
             messagebox.showwarning("Aviso",
                                    "Solo se pueden anular prestamos activos.",
                                    parent=self)

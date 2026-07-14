@@ -29,7 +29,11 @@ class PanelVista(ctk.CTkFrame):
 
         self.t_prestamos = Tarjeta(marco, "Prestamos Activos",
                                     color=COLORES["advertencia"])
-        self.t_prestamos.pack(side="left", fill="x", expand=True)
+        self.t_prestamos.pack(side="left", padx=(0, 15), fill="x", expand=True)
+
+        self.t_vencidos = Tarjeta(marco, "Prestamos Vencidos",
+                                   color=COLORES["peligro"])
+        self.t_vencidos.pack(side="left", fill="x", expand=True)
 
         info = ctk.CTkFrame(self, fg_color=COLORES["tarjeta"], corner_radius=12,
                             border_width=1, border_color=COLORES["borde"])
@@ -58,28 +62,33 @@ class PanelVista(ctk.CTkFrame):
         else:
             self.lbl_conexion.configure(text=f"Sin conexion: {msg}",
                                          text_color=COLORES["peligro"])
-            for t in (self.t_usuarios, self.t_materiales, self.t_prestamos):
+            for t in (self.t_usuarios, self.t_materiales,
+                      self.t_prestamos, self.t_vencidos):
                 t.actualizar("--")
 
     def _cargar_conteos(self):
+        from servicios import reportes_servicio
+
         try:
-            from servicios.usuarios_servicio import listar_usuarios
-            _, filas = listar_usuarios()
-            self.t_usuarios.actualizar(sum(1 for f in filas if f[6] == "A"))
+            self.t_usuarios.actualizar(
+                reportes_servicio.total_usuarios_activos())
         except Exception:
             self.t_usuarios.actualizar("--")
 
         try:
-            from servicios.materiales_servicio import listar_materiales
-            _, filas = listar_materiales()
             self.t_materiales.actualizar(
-                sum(1 for f in filas if f[8] == "DISPONIBLE"))
+                reportes_servicio.total_materiales_disponibles())
         except Exception:
             self.t_materiales.actualizar("--")
 
         try:
-            from servicios.prestamos_servicio import listar_prestamos_activos
-            _, filas = listar_prestamos_activos()
-            self.t_prestamos.actualizar(len(filas))
+            self.t_prestamos.actualizar(
+                reportes_servicio.total_prestamos_activos())
         except Exception:
             self.t_prestamos.actualizar("--")
+
+        try:
+            self.t_vencidos.actualizar(
+                reportes_servicio.total_prestamos_vencidos())
+        except Exception:
+            self.t_vencidos.actualizar("--")

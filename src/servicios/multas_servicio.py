@@ -30,7 +30,5 @@ def total_multas_usuario(cedula):
     with obtener_conexion() as conexion:
         with conexion.cursor() as cursor:
             return int(cursor.callfunc(
-                "PKG_MULTAS_ATRASOS.FN_TOTAL_MULTAS_USUARIO", int, [cedula]
-            )) if False else int(cursor.callfunc(
                 "FN_TOTAL_MULTAS_USUARIO", int, [cedula]
             ))

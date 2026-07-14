@@ -34,6 +34,9 @@ class Aplicacion(ctk.CTk):
             ("tipos", "Tipos de Material"),
             ("categorias", "Categorias"),
             ("prestamos", "Prestamos"),
+            ("multas", "Multas"),
+            ("auditoria", "Auditoria"),
+            ("reportes", "Reportes"),
         ]
 
         self._botones_nav = {}
@@ -62,6 +65,9 @@ class Aplicacion(ctk.CTk):
         from interfaz.vistas.tipos_material_vista import TiposMaterialVista
         from interfaz.vistas.categorias_vista import CategoriasVista
         from interfaz.vistas.prestamos_vista import PrestamosVista
+        from interfaz.vistas.multas_vista import MultasVista
+        from interfaz.vistas.auditoria_vista import AuditoriaVista
+        from interfaz.vistas.reportes_vista import ReportesVista
 
         constructores = {
             "panel": PanelVista,
@@ -70,6 +76,9 @@ class Aplicacion(ctk.CTk):
             "tipos": TiposMaterialVista,
             "categorias": CategoriasVista,
             "prestamos": PrestamosVista,
+            "multas": MultasVista,
+            "auditoria": AuditoriaVista,
+            "reportes": ReportesVista,
         }
         return constructores[nombre](self.contenido)
 
