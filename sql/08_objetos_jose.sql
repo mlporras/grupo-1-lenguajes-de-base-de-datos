@@ -1,37 +1,7 @@
--- Objetos PL/SQL adicionales - Jose
--- Paquetes de validaciones/auditoria/multas, funciones y triggers
+-- Objetos de Jose: validaciones, auditoria, multas, funciones y triggers
+-- Las tablas MULTAS y AUDITORIA_LOG ya estan en 02 y 03
 
--- ============================================================
--- TABLAS Y SECUENCIAS NUEVAS
--- ============================================================
-
-CREATE TABLE MULTAS (
-    ID_MULTA          NUMBER        PRIMARY KEY,
-    ID_PRESTAMO       NUMBER        NOT NULL,
-    CEDULA            VARCHAR2(20)  NOT NULL,
-    MONTO             NUMBER(10,2)  NOT NULL,
-    DIAS_ATRASO       NUMBER        NOT NULL,
-    FECHA_GENERACION  DATE          DEFAULT SYSDATE NOT NULL,
-    ESTADO_PAGO       VARCHAR2(15)  DEFAULT 'PENDIENTE' NOT NULL,
-    CONSTRAINT CK_MULTAS_ESTADO   CHECK (ESTADO_PAGO IN ('PENDIENTE','PAGADA')),
-    CONSTRAINT FK_MULTA_PRESTAMO  FOREIGN KEY (ID_PRESTAMO) REFERENCES PRESTAMOS(ID_PRESTAMO),
-    CONSTRAINT FK_MULTA_USUARIO   FOREIGN KEY (CEDULA)      REFERENCES USUARIOS(CEDULA)
-);
-CREATE SEQUENCE SEQ_MULTAS START WITH 1 INCREMENT BY 1 NOCACHE;
-
-CREATE TABLE AUDITORIA_LOG (
-    ID_LOG           NUMBER        PRIMARY KEY,
-    TABLA_AFECTADA   VARCHAR2(30)  NOT NULL,
-    OPERACION        VARCHAR2(10)  NOT NULL,
-    USUARIO_DB       VARCHAR2(30)  DEFAULT USER NOT NULL,
-    FECHA_HORA       DATE          DEFAULT SYSDATE NOT NULL,
-    DETALLE          VARCHAR2(4000)
-);
-CREATE SEQUENCE SEQ_AUDITORIA_LOG START WITH 1 INCREMENT BY 1 NOCACHE;
-
--- ============================================================
 -- PKG_VALIDACIONES
--- ============================================================
 
 CREATE OR REPLACE PACKAGE PKG_VALIDACIONES AS
     FUNCTION FN_USUARIO_ACTIVO(P_CEDULA IN USUARIOS.CEDULA%TYPE) RETURN NUMBER;
@@ -59,7 +29,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_VALIDACIONES AS
 
     FUNCTION FN_LIMITE_PRESTAMOS_SUPERADO(P_CEDULA IN USUARIOS.CEDULA%TYPE) RETURN NUMBER IS
     BEGIN
-        -- Reutiliza la funcion que ya existe en PKG_PRESTAMOS (de Marco)
+        -- Cuenta prestamos activos con la funcion de Marco
         IF PKG_PRESTAMOS.FN_PRESTAMOS_ACTIVOS_USUARIO(P_CEDULA) >= 3 THEN
             RETURN 1;
         ELSE
@@ -98,9 +68,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_VALIDACIONES AS
 END PKG_VALIDACIONES;
 /
 
--- ============================================================
 -- PKG_AUDITORIA
--- ============================================================
 
 CREATE OR REPLACE PACKAGE PKG_AUDITORIA AS
     PROCEDURE REGISTRAR_EVENTO(
@@ -173,9 +141,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_AUDITORIA AS
 END PKG_AUDITORIA;
 /
 
--- ============================================================
 -- PKG_MULTAS_ATRASOS
--- ============================================================
 
 CREATE OR REPLACE PACKAGE PKG_MULTAS_ATRASOS AS
     FUNCTION FN_CALCULAR_DIAS_ATRASO(P_ID_PRESTAMO IN PRESTAMOS.ID_PRESTAMO%TYPE) RETURN NUMBER;
@@ -212,7 +178,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_MULTAS_ATRASOS AS
         RETURN V_DIAS;
     END FN_CALCULAR_DIAS_ATRASO;
 
-    -- Uso normal (fuera de triggers): consulta PRESTAMOS directamente
+    -- Uso normal desde la app: lee PRESTAMOS y calcula el atraso
     PROCEDURE GENERAR_MULTA(P_ID_PRESTAMO IN PRESTAMOS.ID_PRESTAMO%TYPE) IS
         V_DIAS   NUMBER;
         V_CEDULA PRESTAMOS.CEDULA%TYPE;
@@ -236,7 +202,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_MULTAS_ATRASOS AS
         END IF;
     END GENERAR_MULTA;
 
-    -- Version "directa": NO consulta PRESTAMOS (recibe los datos ya calculados).
+    -- Lo usa el trigger. Recibe cedula y dias ya calculados.
     PROCEDURE GENERAR_MULTA_DIRECTA(
         P_ID_PRESTAMO IN PRESTAMOS.ID_PRESTAMO%TYPE,
         P_CEDULA      IN PRESTAMOS.CEDULA%TYPE,
@@ -284,9 +250,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_MULTAS_ATRASOS AS
 END PKG_MULTAS_ATRASOS;
 /
 
--- ============================================================
--- 6 FUNCIONES INDEPENDIENTES
--- ============================================================
+-- Funciones sueltas del esquema
 
 CREATE OR REPLACE FUNCTION FN_TOTAL_MULTAS_USUARIO(P_CEDULA IN USUARIOS.CEDULA%TYPE) RETURN NUMBER IS
     V_TOTAL NUMBER := 0;
@@ -348,11 +312,9 @@ BEGIN
 END FN_ANTIGUEDAD_USUARIO_DIAS;
 /
 
--- ============================================================
--- 5 TRIGGERS
--- ============================================================
+-- Triggers
 
--- 1. Impide borrar un usuario que tiene prestamos activos
+-- Bloquea borrar usuario con prestamos activos
 CREATE OR REPLACE TRIGGER TRG_BLOQUEAR_BAJA_USUARIO_CON_PRESTAMOS
 BEFORE DELETE ON USUARIOS
 FOR EACH ROW
@@ -372,7 +334,7 @@ BEGIN
 END;
 /
 
--- 2. Valida que la fecha esperada sea posterior a la fecha del prestamo (defensa extra a nivel de tabla)
+-- La devolucion esperada debe ser despues del prestamo
 CREATE OR REPLACE TRIGGER TRG_VALIDAR_FECHAS_PRESTAMO
 BEFORE INSERT ON PRESTAMOS
 FOR EACH ROW
@@ -383,7 +345,7 @@ BEGIN
 END;
 /
 
--- 3. Genera la multa automaticamente cuando se registra la devolucion tardia
+-- Crea multa al registrar una devolucion tarde
 CREATE OR REPLACE TRIGGER TRG_GENERAR_MULTA_AUTOMATICA
 AFTER UPDATE OF FECHA_DEVOLUCION_REAL ON PRESTAMOS
 FOR EACH ROW
@@ -398,7 +360,7 @@ BEGIN
 END;
 /
 
--- 4. Auditoria de cambios en USUARIOS
+-- Auditoria en USUARIOS
 CREATE OR REPLACE TRIGGER TRG_AUDITORIA_USUARIOS
 AFTER INSERT OR UPDATE OR DELETE ON USUARIOS
 FOR EACH ROW
@@ -415,7 +377,7 @@ BEGIN
 END;
 /
 
--- 5. Auditoria de cambios en MATERIALES
+-- Auditoria en MATERIALES
 CREATE OR REPLACE TRIGGER TRG_AUDITORIA_MATERIALES
 AFTER INSERT OR UPDATE OR DELETE ON MATERIALES
 FOR EACH ROW

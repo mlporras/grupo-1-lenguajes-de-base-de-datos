@@ -1,5 +1,4 @@
--- Objetos PL/SQL adicionales - Fabio
--- Vistas, funciones y paquetes de consultas y reportes
+-- Objetos de Fabio: vistas, funciones y paquetes de consultas y reportes
 
 
 CREATE OR REPLACE VIEW VW_MATERIALES_DISPONIBLES AS
@@ -194,7 +193,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_REPORTES AS
 
     PROCEDURE MARCAR_PRESTAMOS_VENCIDOS IS
         CURSOR C_VENCIDOS IS
-            SELECT ID_PRESTAMO
+            SELECT ID_PRESTAMO, ID_MATERIAL
             FROM PRESTAMOS
             WHERE ESTADO = 'ACTIVO'
               AND FECHA_DEVOLUCION_ESPERADA < TRUNC(SYSDATE);
@@ -203,6 +202,9 @@ CREATE OR REPLACE PACKAGE BODY PKG_REPORTES AS
             UPDATE PRESTAMOS
             SET ESTADO = 'ANULADO'
             WHERE ID_PRESTAMO = REG.ID_PRESTAMO;
+            UPDATE MATERIALES
+            SET ESTADO = 'DISPONIBLE'
+            WHERE ID_MATERIAL = REG.ID_MATERIAL;
         END LOOP;
     END MARCAR_PRESTAMOS_VENCIDOS;
 

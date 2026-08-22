@@ -6,14 +6,14 @@ Table TIPOS_MATERIAL {
   ID_TIPO_MATERIAL number [pk]
   NOMBRE varchar2(50) [not null]
   DESCRIPCION varchar2(200)
-  ESTADO char(1) [not null, default: 'A', note: "Valores: A, I"]
+  ESTADO char(1) [not null, default: 'A', note: "CHECK: A, I"]
 }
 
 Table CATEGORIAS {
   ID_CATEGORIA number [pk]
   NOMBRE varchar2(80) [not null]
   DESCRIPCION varchar2(200)
-  ESTADO char(1) [not null, default: 'A', note: "Valores: A, I"]
+  ESTADO char(1) [not null, default: 'A', note: "CHECK: A, I"]
 }
 
 Table USUARIOS {
@@ -23,7 +23,7 @@ Table USUARIOS {
   CORREO varchar2(120)
   TELEFONO varchar2(20)
   FECHA_REGISTRO date [not null, default: `SYSDATE`]
-  ESTADO char(1) [not null, default: 'A', note: "Valores: A, I"]
+  ESTADO char(1) [not null, default: 'A', note: "CHECK: A, I"]
 }
 
 Table MATERIALES {
@@ -35,7 +35,7 @@ Table MATERIALES {
   CODIGO_ISBN varchar2(30) [unique]
   ID_TIPO_MATERIAL number [not null]
   ID_CATEGORIA number [not null]
-  ESTADO varchar2(20) [not null, default: 'DISPONIBLE', note: "Valores: DISPONIBLE, PRESTADO, INACTIVO"]
+  ESTADO varchar2(20) [not null, default: 'DISPONIBLE', note: "CHECK: DISPONIBLE, PRESTADO, INACTIVO"]
 }
 
 Table PRESTAMOS {
@@ -45,10 +45,31 @@ Table PRESTAMOS {
   FECHA_PRESTAMO date [not null, default: `SYSDATE`]
   FECHA_DEVOLUCION_ESPERADA date [not null]
   FECHA_DEVOLUCION_REAL date
-  ESTADO varchar2(20) [not null, default: 'ACTIVO', note: "Valores: ACTIVO, DEVUELTO, ANULADO"]
+  ESTADO varchar2(20) [not null, default: 'ACTIVO', note: "CHECK: ACTIVO, DEVUELTO, ANULADO"]
+}
+
+Table MULTAS {
+  ID_MULTA number [pk]
+  ID_PRESTAMO number [not null]
+  CEDULA varchar2(20) [not null]
+  MONTO number(10,2) [not null]
+  DIAS_ATRASO number [not null]
+  FECHA_GENERACION date [not null, default: `SYSDATE`]
+  ESTADO_PAGO varchar2(15) [not null, default: 'PENDIENTE', note: "CHECK: PENDIENTE, PAGADA"]
+}
+
+Table AUDITORIA_LOG {
+  ID_LOG number [pk]
+  TABLA_AFECTADA varchar2(30) [not null]
+  OPERACION varchar2(10) [not null]
+  USUARIO_DB varchar2(30) [not null, default: `USER`]
+  FECHA_HORA date [not null, default: `SYSDATE`]
+  DETALLE varchar2(4000)
 }
 
 Ref: MATERIALES.ID_TIPO_MATERIAL > TIPOS_MATERIAL.ID_TIPO_MATERIAL
 Ref: MATERIALES.ID_CATEGORIA > CATEGORIAS.ID_CATEGORIA
 Ref: PRESTAMOS.CEDULA > USUARIOS.CEDULA
 Ref: PRESTAMOS.ID_MATERIAL > MATERIALES.ID_MATERIAL
+Ref: MULTAS.ID_PRESTAMO > PRESTAMOS.ID_PRESTAMO
+Ref: MULTAS.CEDULA > USUARIOS.CEDULA

@@ -1,0 +1,393 @@
+================================================================================
+SISTEMA DE BIBLIOTECA - GUIA DE INSTALACION
+================================================================================
+Proyecto academico: biblioteca-oracle-python
+Entorno: Oracle 19c, PDB orclpdb, Windows.
+
+Esta guia reproduce el proceso que se probo en el sandbox academico.
+Las credenciales que aparecen aqui son de demostracion (no son de produccion).
+
+Idea en una frase:
+    Instalar Python, decirle a la app como conectar a Oracle, crear un
+    usuario de base de datos, correr 8 scripts SQL en orden y abrir la
+    ventana del sistema.
+
+
+MAPA RAPIDO (5 PASOS)
+--------------------------------------------------------------------------------
+  1. Crear el entorno Python (.venv) e instalar paquetes.
+  2. Copiar .env.example a .env (ahi van usuario, clave y servicio Oracle).
+  3. UNA VEZ: script 00, como SYS/SYSTEM, conectado al PDB orclpdb.
+  4. SIEMPRE en este orden: scripts 01 a 08, como biblioteca_user.
+  5. Abrir la app: python src\principal.py
+
+Si algo falla, vaya a la seccion "ERRORES COMUNES" al final.
+No se salte el orden de los scripts. El 06 necesita tablas que crea el 02.
+
+
+PALABRAS QUE APARECEN EN ESTA GUIA
+--------------------------------------------------------------------------------
+PDB (orclpdb)
+    "Cajita" dentro de Oracle donde vive este proyecto. El servicio se llama
+    orclpdb y usa el puerto 1521. AHI hay que conectarse.
+
+CDB / CDB$ROOT / servicio ORCL
+    El contenedor grande de Oracle. NO instale el proyecto ahi. Si lo hace,
+    el script 00 falla con ORA-65096.
+
+SQL*Plus / SQL Developer
+    Dos formas de ejecutar los archivos .sql. Use la que prefiera. El orden
+    de los archivos es el mismo.
+
+venv / .venv
+    Carpeta con una copia aislada de Python para este proyecto. Asi no se
+    mezclan paquetes con otros trabajos.
+
+Idempotente (script 00)
+    Se puede repetir sin romper nada: si el usuario ya existe, no lo borra;
+    solo vuelve a dar los permisos.
+
+Eliminacion logica
+    La app no hace DELETE de usuarios, materiales, tipos ni categorias.
+    Cambia el ESTADO (I / INACTIVO) y el registro sigue en la base.
+
+
+1. QUE NECESITA ANTES DE EMPEZAR
+--------------------------------------------------------------------------------
+- Python 3.8 o superior (se probo con Python 3.14.3 en Windows).
+- Oracle Database con el PDB orclpdb ABIERTO (servicio orclpdb, puerto 1521).
+- SQL Developer o SQL*Plus.
+- Tkinter (viene con la instalacion estandar de Python en Windows).
+- Privilegio administrativo (SYS o SYSTEM) SOLO para el script 00.
+  Los scripts 01 a 08 y la aplicacion usan el usuario del proyecto.
+
+Carpeta de trabajo: la raiz del proyecto (biblioteca-oracle-python).
+Todos los comandos de esta guia se ejecutan desde ahi, salvo que se indique
+otra cosa.
+
+
+2. PASO 1 - PYTHON: ENTORNO VIRTUAL Y PAQUETES (Windows)
+--------------------------------------------------------------------------------
+Abra una consola en la carpeta biblioteca-oracle-python y ejecute:
+
+    python -m venv .venv
+    .venv\Scripts\activate
+    pip install -r requirements.txt
+
+Que instala pip: oracledb, python-dotenv, customtkinter, tkcalendar.
+
+Si ve "(venv)" o "(.venv)" al inicio de la linea de la consola, el entorno
+esta activado. Si cierra la consola, vuelva a activar con:
+
+    .venv\Scripts\activate
+
+
+3. PASO 2 - DECIRLE A LA APP COMO CONECTAR (.env)
+--------------------------------------------------------------------------------
+Oracle pide usuario, contrasena, host, puerto y nombre del servicio.
+Eso NO va en el codigo. Va en un archivo llamado .env.
+
+Copie el ejemplo:
+
+    copy .env.example .env
+
+Contenido del sandbox academico (tambien esta en .env.example):
+
+    ORACLE_USUARIO=biblioteca_user
+    ORACLE_CONTRASENA=biblioteca123
+    ORACLE_HOST=localhost
+    ORACLE_PUERTO=1521
+    ORACLE_SERVICIO=orclpdb
+
+Que significa cada linea:
+
+    ORACLE_USUARIO     Usuario de Oracle del proyecto
+    ORACLE_CONTRASENA  Contrasena de ese usuario
+    ORACLE_HOST        Maquina del listener (en este lab: localhost)
+    ORACLE_PUERTO      Puerto del listener (1521)
+    ORACLE_SERVICIO    Nombre del servicio / PDB (aqui: orclpdb, NO XEPDB1)
+
+IMPORTANTE: si no existe .env, src\configuracion.py usa XEPDB1.
+Ese valor es tipico de Oracle XE. Este laboratorio usa orclpdb.
+Sin .env la ventana puede abrir, pero NO va a conectar a esta base.
+
+El archivo .env esta en .gitignore. No se sube al repositorio.
+Por eso hay que copiarlo desde .env.example en cada maquina.
+
+
+4. PASO 3 - CREAR EL USUARIO DE ORACLE (SCRIPT 00, SOLO UNA VEZ)
+--------------------------------------------------------------------------------
+El script sql\00_configurar_usuario.sql:
+
+  - Se ejecuta con SYS o SYSTEM.
+  - Debe ir contra el PDB orclpdb (servicio orclpdb).
+  - NO ejecutarlo contra CDB$ROOT ni contra el servicio ORCL.
+  - Crea el usuario biblioteca_user / biblioteca123 SI NO EXISTE.
+  - Le da estos privilegios:
+        CONNECT, RESOURCE, CREATE SESSION, CREATE TABLE, CREATE SEQUENCE,
+        CREATE PROCEDURE, CREATE VIEW, CREATE TRIGGER
+  - Si el usuario ya existe, NO lo borra. Solo vuelve a otorgar permisos.
+    Por eso se puede repetir sin miedo.
+
+Los scripts 01 a 08 NO se corren como SYS. Se corren como biblioteca_user.
+
+
+5. PASO 4 - INSTALAR EL ESQUEMA (SCRIPTS 01 A 08, ORDEN FIJO)
+--------------------------------------------------------------------------------
+Que hace cada archivo (no cambiar el orden):
+
+    00  Crear usuario biblioteca_user (ya se hizo en el paso 3)
+    01  Borrar objetos VIEJOS de este proyecto (para poder reinstalar)
+    02  Crear las 7 tablas
+    03  Crear las 6 secuencias (numeros automaticos)
+    04  Especificaciones de los 10 paquetes PL/SQL (el "contrato")
+    05  Cuerpos de esos 10 paquetes (el codigo)
+    06  Datos de demostracion (usuarios, libros, prestamos, etc.)
+    07  Objetos extra de Fabio (vistas / funciones segun el script)
+    08  Objetos extra de Jose (paquetes, funciones, triggers, etc.)
+
+El script 01 solo borra objetos DE ESTE PROYECTO:
+    7 tablas, 6 secuencias, 10 vistas, 10 paquetes,
+    6 funciones independientes, 5 triggers.
+Asi se puede repetir 01-08 sin errores y sin tocar otros esquemas.
+
+El script 06 carga datos de prueba. Necesita que existan las tablas
+MULTAS y AUDITORIA_LOG (se crean en 02) y sus secuencias (se crean en 03).
+Por eso 06 va despues de 02 y 03. Puede ir antes de 07 y 08.
+
+ANTES DE EJECUTAR 01 (borra objetos), confirme usuario y contenedor:
+
+    SELECT USER, SYS_CONTEXT('USERENV','CON_NAME') AS PDB FROM DUAL;
+
+Debe devolver:
+
+    BIBLIOTECA_USER     y     ORCLPDB
+
+Excepcion: el script 00 corre como SYS/SYSTEM, pero TAMBIEN en ORCLPDB.
+
+
+--- Opcion A: SQL*Plus ---
+
+Administrador (solo el 00), conectado al PDB:
+
+    sqlplus sys/<clave_sys>@localhost:1521/orclpdb as sysdba
+    @sql\00_configurar_usuario.sql
+
+Usuario del proyecto (01 a 08), desde la raiz del proyecto:
+
+    sqlplus biblioteca_user/biblioteca123@localhost:1521/orclpdb
+
+    @sql\01_eliminar_objetos.sql
+    @sql\02_crear_tablas.sql
+    @sql\03_crear_secuencias.sql
+    @sql\04_especificaciones_paquetes.sql
+    @sql\05_cuerpos_paquetes.sql
+    @sql\06_insertar_datos_prueba.sql
+    @sql\07_objetos_fabio.sql
+    @sql\08_objetos_jose.sql
+
+Si un CREATE PACKAGE BODY muestra:
+    Warning: Package Body created with compilation errors
+ejecute inmediatamente:
+
+    SHOW ERRORS
+
+Luego revise USER_ERRORS (seccion 6) o vuelva a correr 01 a 08 en orden.
+
+
+--- Opcion B: SQL Developer ---
+
+1) Cree (o use) una conexion SYS o SYSTEM al servicio orclpdb.
+   Abra sql\00_configurar_usuario.sql y ejecute TODO el archivo
+   como script (F5 / Run Script). No ejecute solo una linea.
+
+2) Cree una conexion:
+       usuario    biblioteca_user
+       contrasena biblioteca123
+       servicio   orclpdb
+   Con esa conexion, ejecute cada archivo completo como script (F5),
+   en este orden:
+
+     01_eliminar_objetos.sql
+     02_crear_tablas.sql
+     03_crear_secuencias.sql
+     04_especificaciones_paquetes.sql
+     05_cuerpos_paquetes.sql
+     06_insertar_datos_prueba.sql
+     07_objetos_fabio.sql
+     08_objetos_jose.sql
+
+
+6. PASO 5 - COMPROBAR QUE TODO QUEDO BIEN
+--------------------------------------------------------------------------------
+Siga conectado como biblioteca_user. Copie y pegue estas consultas.
+
+6.1 Objetos rotos (debe salir vacio)
+
+    SELECT object_name, object_type, status
+    FROM user_objects
+    WHERE status = 'INVALID'
+    ORDER BY object_type, object_name;
+
+6.2 Errores de compilacion (debe salir vacio)
+
+    SELECT name, type, line, position, text
+    FROM user_errors
+    ORDER BY name, type, sequence;
+
+6.3 Conteo (compare con la tabla de abajo)
+
+    SELECT object_type, COUNT(*) AS total
+    FROM user_objects
+    WHERE object_type IN (
+        'TABLE', 'SEQUENCE', 'VIEW',
+        'PACKAGE', 'PACKAGE BODY', 'FUNCTION', 'TRIGGER'
+    )
+    GROUP BY object_type
+    ORDER BY object_type;
+
+    TABLE         7
+    SEQUENCE      6
+    VIEW         10
+    PACKAGE      10
+    PACKAGE BODY 10
+    FUNCTION      6
+    TRIGGER       5
+
+6.4 Triggers encendidos (los cinco en ENABLED)
+
+    SELECT trigger_name, status
+    FROM user_triggers
+    ORDER BY trigger_name;
+
+Si hay objetos INVALID, recompile y vuelva a correr 6.1:
+
+    BEGIN
+      FOR r IN (SELECT object_name, object_type FROM user_objects WHERE status = 'INVALID') LOOP
+        IF r.object_type = 'PACKAGE BODY' THEN
+          EXECUTE IMMEDIATE 'ALTER PACKAGE ' || r.object_name || ' COMPILE BODY';
+        ELSIF r.object_type IN ('PACKAGE', 'FUNCTION', 'PROCEDURE', 'TRIGGER', 'VIEW') THEN
+          EXECUTE IMMEDIATE 'ALTER ' || r.object_type || ' ' || r.object_name || ' COMPILE';
+        END IF;
+      END LOOP;
+    END;
+    /
+
+
+7. PASO 6 - ABRIR LA APLICACION
+--------------------------------------------------------------------------------
+En la consola, carpeta raiz del proyecto, venv activado:
+
+    python src\principal.py
+
+Debe abrir la ventana "Sistema de Biblioteca" (CustomTkinter).
+El panel inicial prueba la conexion a Oracle y muestra contadores
+(usuarios activos, materiales disponibles, prestamos, vencidos).
+
+Si el panel dice "Conectado a Oracle", termino la instalacion.
+
+
+8. COMO SABER QUE LA INSTALACION ESTA COMPLETA
+--------------------------------------------------------------------------------
+Objetos:
+
+- 7 tablas:
+    TIPOS_MATERIAL, CATEGORIAS, USUARIOS, MATERIALES, PRESTAMOS,
+    MULTAS, AUDITORIA_LOG
+- 6 secuencias:
+    SEQ_TIPOS_MATERIAL, SEQ_CATEGORIAS, SEQ_MATERIALES,
+    SEQ_PRESTAMOS, SEQ_MULTAS, SEQ_AUDITORIA_LOG
+- 10 vistas (nombres VW_*)
+- 10 paquetes y 10 package bodies en estado VALID
+- 6 funciones independientes en estado VALID
+- 5 triggers en estado ENABLED
+- USER_ERRORS vacio (cero filas)
+
+Datos de demostracion que carga el script 06:
+
+    6 usuarios, 5 tipos, 5 categorias, 12 materiales,
+    8 prestamos, 2 multas y registros en AUDITORIA_LOG
+
+La aplicacion conecta con las credenciales del archivo .env.
+
+
+9. COMO "BORRA" LA APLICACION (ELIMINACION LOGICA)
+--------------------------------------------------------------------------------
+Esto importa para no pensar que el boton Inactivar fallo.
+
+Tipos, categorias, usuarios y materiales:
+    NO se borran filas.
+    Se llama a procedimientos INACTIVAR_* que cambian el estado.
+
+        Tipos / categorias / usuarios:  ESTADO = 'I'     (activo = 'A')
+        Materiales:                     ESTADO = 'INACTIVO'
+            (otros estados de material: DISPONIBLE, PRESTADO)
+
+Los listados de la ventana muestran solo activos.
+El registro inactivado SIGUE en la tabla.
+USUARIOS y MATERIALES tienen triggers que escriben en AUDITORIA_LOG
+cuando hay cambios.
+
+Prestamos:
+    No se usa DELETE.
+    Se cierran con devolucion (DEVUELTO) o anulacion (ANULADO).
+    En ambos casos el material vuelve a DISPONIBLE.
+
+Auditoria:
+    AUDITORIA_LOG no se limpia desde el CRUD de usuarios o materiales.
+    Se limpia con PKG_AUDITORIA.PURGAR_AUDITORIA.
+
+
+10. SI ALGO FALLA (ERRORES COMUNES)
+--------------------------------------------------------------------------------
+ORA-12514 / DPY-6001, o la app busca el servicio XEPDB1
+    Falta el .env o ORACLE_SERVICIO no es orclpdb.
+    Copie .env.example a .env y deje ORACLE_SERVICIO=orclpdb.
+
+ORA-01017 invalid username/password
+    Usuario: biblioteca_user
+    Contrasena: biblioteca123
+    Si ese usuario no existe, ejecute el script 00 como SYS en orclpdb
+    (no en CDB$ROOT).
+
+ORA-01920 / ORA-65096 al ejecutar el 00
+    Esta conectado al CDB (servicio ORCL / CDB$ROOT) en lugar del PDB.
+    Conectese al servicio orclpdb y vuelva a ejecutar el 00.
+
+ORA-00942 table or view does not exist en el script 06
+    Se salto el 02 o el 03.
+    MULTAS y AUDITORIA_LOG se crean en 02.
+    SEQ_MULTAS y SEQ_AUDITORIA_LOG se crean en 03.
+    Vuelva a 01 y recorra 02 a 08 en orden.
+
+Warning: Package Body created with compilation errors
+    Se salto el 04 (especificaciones) o falta una tabla/secuencia.
+    En SQL*Plus: SHOW ERRORS.
+    Consulte USER_ERRORS (seccion 6) y ejecute otra vez 01 a 08.
+
+ORA-00001 unique constraint al ejecutar el 06 otra vez
+    Los datos de demostracion ya estan. No se puede insertar el seed dos
+    veces seguidas. Ejecute 01 y luego 02 a 08 de nuevo.
+
+DPI-1047 / no se encuentra Oracle Client
+    Este proyecto usa oracledb en modo thin: no necesita Instant Client.
+    Si aparece el error, reinstale paquetes en el venv:
+        pip install -r requirements.txt
+
+La ventana no abre / ModuleNotFoundError: customtkinter
+    El venv no esta activado, o no se corrio pip install -r requirements.txt.
+    Active .venv\Scripts\activate y vuelva a instalar.
+
+Material queda PRESTADO despues de anular
+    Use el boton Anular de la aplicacion (PKG_PRESTAMOS.ANULAR_PRESTAMO).
+    PKG_REPORTES.MARCAR_PRESTAMOS_VENCIDOS tambien deja el material
+    en DISPONIBLE.
+
+
+11. VOLVER A INSTALAR TODO DESDE CERO
+--------------------------------------------------------------------------------
+Si el usuario biblioteca_user ya existe, NO hace falta el script 00.
+
+Conectese como biblioteca_user al servicio orclpdb y repita 01 a 08.
+El 01 limpia el esquema de este proyecto. El resto lo vuelve a crear
+y el 06 carga otra vez los datos de demostracion.
